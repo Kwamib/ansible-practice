@@ -1,0 +1,51 @@
+# What Ansible knows about each server, and how to use it.
+# Run with:  ansible-playbook facts.yml
+# Try:       ansible-playbook facts.yml -e "greeting='hello from the command line'"
+
+- name: Variables and facts
+  hosts: bookshop
+  vars:
+    greeting: hello from the play
+  tasks:
+    - name: A few of the facts Ansible gathered
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} runs {{ ansible_facts['distribution'] }}
+          {{ ansible_facts['distribution_version'] }}, with
+          {{ ansible_facts['memtotal_mb'] }} MB of memory and
+          {{ ansible_facts['processor_vcpus'] }} CPU, at
+          {{ ansible_facts['default_ipv4']['address'] }}
+
+    - name: Variables from the inventory, and one from the play
+      ansible.builtin.debug:
+        msg: >-
+          site_name={{ site_name | default('(not set)') }}
+          http_port={{ http_port | default('(not set)') }}
+          admin_email={{ admin_email }}
+          greeting={{ greeting }}
+
+    - name: Ask nginx for its version
+      ansible.builtin.command: nginx -v
+      register: nginx_version
+      changed_when: false
+      when: "'web' in group_names"
+
+    - name: Show everything that was captured
+      ansible.builtin.debug:
+        var: nginx_version
+      when: "'web' in group_names"
+
+    - name: Work out a value from the facts
+      ansible.builtin.set_fact:
+        memory_class: "{{ 'small' if ansible_facts['memtotal_mb'] < 2048 else 'large' }}"
+
+    - name: Use it
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} is a {{ memory_class }} server"
+
+    - name: Find the database, from db1's own facts
+      ansible.builtin.debug:
+        msg: >-
+          The database is at
+          {{ hostvars['db1']['ansible_facts']['default_ipv4']['address'] }}:{{ hostvars['db1']['db_port'] }}
+      when: "'web' in group_names"
