@@ -1,0 +1,3 @@
+# Settings for the web servers.
+http_port: 80
+site_name: bookshop
