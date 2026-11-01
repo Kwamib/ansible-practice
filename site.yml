@@ -1,0 +1,52 @@
+# The bookshop servers, described. Run with:  ansible-playbook site.yml
+# Dry run first:                              ansible-playbook site.yml --check --diff
+
+- name: Baseline for every bookshop server
+  hosts: bookshop
+  become: true
+  tasks:
+    - name: Install the packages every server needs
+      ansible.builtin.apt:
+        name:
+          - acl
+          - htop
+          - tree
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Show who manages this server when someone logs in
+      ansible.builtin.copy:
+        dest: /etc/motd
+        content: |
+          This is {{ inventory_hostname }}, part of the bookshop.
+          It's managed by Ansible: changes made here by hand will be put back.
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Create the deploy user
+      ansible.builtin.user:
+        name: deploy
+        shell: /bin/bash
+        state: present
+
+    - name: Record when this server was first set up
+      ansible.builtin.shell:
+        cmd: date -u +%Y-%m-%dT%H:%M:%SZ > /etc/bookshop-first-setup
+        creates: /etc/bookshop-first-setup
+
+- name: Web servers
+  hosts: web
+  become: true
+  tasks:
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Keep nginx running, and start it at boot
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
