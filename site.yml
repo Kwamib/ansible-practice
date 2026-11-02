@@ -45,6 +45,32 @@
         name: nginx
         state: present
 
+    - name: Remove nginx's default site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Write the bookshop site's config
+      ansible.builtin.template:
+        src: templates/bookshop.conf.j2
+        dest: /etc/nginx/sites-available/bookshop
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Enable the bookshop site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/bookshop
+        dest: /etc/nginx/sites-enabled/bookshop
+        state: link
+      notify: Reload nginx
+
+    - name: Check nginx's config before anything reloads it
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
     - name: Keep nginx running, and start it at boot
       ansible.builtin.service:
         name: nginx
@@ -52,12 +78,15 @@
         enabled: true
 
     - name: Put up the bookshop's home page
-      ansible.builtin.copy:
+      ansible.builtin.template:
+        src: templates/index.html.j2
         dest: /var/www/html/index.html
-        content: |
-          <h1>{{ site_name }}</h1>
-          <p>Served by {{ inventory_hostname }} ({{ ansible_facts['default_ipv4']['address'] }}), on port {{ http_port }}.</p>
-          <p>Questions? {{ admin_email }}</p>
         owner: root
         group: root
         mode: "0644"
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
