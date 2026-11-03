@@ -1,0 +1,33 @@
+# Every bookshop server: packages, login message, staff accounts.
+- name: Install the packages every server needs
+  ansible.builtin.apt:
+    name: "{{ baseline_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Show who manages this server when someone logs in
+  ansible.builtin.copy:
+    dest: /etc/motd
+    content: |
+      This is {{ inventory_hostname }}, part of the bookshop.
+      It's managed by Ansible: changes made here by hand will be put back.
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Staff accounts
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment | default(omit) }}"
+    shell: /bin/bash
+    state: "{{ item.state | default('present') }}"
+    remove: "{{ item.state | default('present') == 'absent' }}"
+  loop: "{{ bookshop_staff }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Record when this server was first set up
+  ansible.builtin.shell:
+    cmd: date -u +%Y-%m-%dT%H:%M:%SZ > /etc/bookshop-first-setup
+    creates: /etc/bookshop-first-setup

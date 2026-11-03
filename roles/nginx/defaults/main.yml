@@ -1,0 +1,4 @@
+# Defaults for the nginx role: the lowest priority of any variable.
+# group_vars, host_vars, the inventory and -e all win over these.
+http_port: 80
+site_name: bookshop

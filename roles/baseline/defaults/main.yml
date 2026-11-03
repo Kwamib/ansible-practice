@@ -1,0 +1,12 @@
+# Defaults for the baseline role. Anything here can be overridden,
+# in group_vars, host_vars, the inventory or with -e.
+
+# Packages every server gets.
+baseline_packages:
+  - acl
+  - htop
+  - tree
+
+# Staff accounts to manage. Empty unless the inventory says otherwise;
+# the bookshop's list is in group_vars/all.yml.
+bookshop_staff: []
