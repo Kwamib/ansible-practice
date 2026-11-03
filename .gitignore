@@ -1,3 +1,4 @@
 .vagrant/
 ssh_config
 *.retry
+.vault_pass
