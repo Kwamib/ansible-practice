@@ -7,6 +7,6 @@ baseline_packages:
   - htop
   - tree
 
-# Staff accounts to manage. Empty unless the inventory says otherwise;
-# the bookshop's list is in group_vars/all.yml.
-bookshop_staff: []
+# Staff accounts to manage: the inventory's bookshop_staff list
+# (in group_vars/all.yml), or none if it doesn't have one.
+baseline_staff: "{{ bookshop_staff | default([]) }}"

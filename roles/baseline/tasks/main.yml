@@ -23,7 +23,7 @@
     shell: /bin/bash
     state: "{{ item.state | default('present') }}"
     remove: "{{ item.state | default('present') == 'absent' }}"
-  loop: "{{ bookshop_staff }}"
+  loop: "{{ baseline_staff }}"
   loop_control:
     label: "{{ item.name }}"
 
