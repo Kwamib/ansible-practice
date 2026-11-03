@@ -1,0 +1,275 @@
+# The bookshop server from the Linux track's last lesson, as a playbook.
+# The same steps as linux-practice/fresh/setup.sh, in the same order.
+# Run with:  ansible-playbook bookshop.yml     Check with:  ansible bookshop3 -m script -a audit.sh --become
+
+- name: Build the bookshop server
+  hosts: bookshop
+  become: true
+  vars:
+    data_image: /var/tmp/books-data.img
+
+  tasks:
+    # Packages (Linux Lesson 8). acl and python3-psycopg2 are for Ansible itself:
+    # acl lets it run tasks as postgres, psycopg2 lets it talk to the database.
+    - name: Install the packages
+      ansible.builtin.apt:
+        name: [nginx, postgresql, unattended-upgrades, shellcheck, acl, python3-psycopg2]
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Bring everything up to date
+      ansible.builtin.apt:
+        upgrade: safe
+
+    - name: Turn on automatic security updates
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+        mode: "0644"
+
+    # Users (Linux Lessons 5 and 11)
+    - name: The app's own user, which can't log in
+      ansible.builtin.user:
+        name: bookshop
+        system: true
+        create_home: false
+        shell: /usr/sbin/nologin
+
+    - name: Sam, who can use sudo
+      ansible.builtin.user:
+        name: sam
+        shell: /bin/bash
+        groups: sudo
+        append: true
+
+    - name: Sam's home, closed to others
+      ansible.builtin.file:
+        path: /home/sam
+        mode: "0750"
+
+    - name: Sam's .ssh folder
+      ansible.builtin.file:
+        path: /home/sam/.ssh
+        state: directory
+        owner: sam
+        group: sam
+        mode: "0700"
+
+    - name: Sam's SSH key
+      ansible.builtin.copy:
+        src: files/sam.pub
+        dest: /home/sam/.ssh/authorized_keys
+        owner: sam
+        group: sam
+        mode: "0600"
+
+    # sudo needs a password (Linux Lesson 11)
+    - name: Make the sudo group type its password
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/10-bookshop
+        content: "Defaults !exempt_group\n"
+        mode: "0440"
+        validate: visudo -cf %s
+
+    - name: Tighten Vagrant's own sudo rule file
+      ansible.builtin.file:
+        path: /etc/sudoers.d/vagrant
+        mode: "0440"
+
+    # SSH: keys only, no root (Linux Lesson 11)
+    - name: The folder sshd -t needs
+      ansible.builtin.file:
+        path: /run/sshd
+        state: directory
+        mode: "0755"
+
+    - name: SSH with keys only, and no root
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/10-bookshop.conf
+        content: |
+          PasswordAuthentication no
+          PermitRootLogin no
+        mode: "0644"
+        validate: /usr/sbin/sshd -t -f %s
+      notify: Reload ssh
+
+    # Firewall: SSH and web only (Linux Lesson 9)
+    - name: Allow SSH
+      community.general.ufw:
+        rule: allow
+        name: OpenSSH
+
+    - name: Allow web
+      community.general.ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: Turn the firewall on
+      community.general.ufw:
+        state: enabled
+
+    # Data disk at /srv/books-data (Linux Lesson 10)
+    - name: Make the disk image
+      ansible.builtin.shell:
+        cmd: fallocate -l 90M {{ data_image }} && mkfs.ext4 -q {{ data_image }}
+        creates: "{{ data_image }}"
+
+    - name: Mount it, now and at every boot
+      ansible.posix.mount:
+        path: /srv/books-data
+        src: "{{ data_image }}"
+        fstype: ext4
+        opts: loop,nofail
+        passno: 2
+        state: mounted
+
+    - name: Give it to the app's user
+      ansible.builtin.file:
+        path: /srv/books-data
+        owner: bookshop
+        group: bookshop
+
+    # Database (Linux Lessons 8 and 13)
+    - name: The books database
+      community.postgresql.postgresql_db:
+        name: books
+      become: true
+      become_user: postgres
+
+    - name: The books table
+      community.postgresql.postgresql_table:
+        login_db: books
+        name: books
+        columns:
+          - id serial PRIMARY KEY
+          - title text NOT NULL
+          - stock int NOT NULL DEFAULT 0
+      become: true
+      become_user: postgres
+
+    - name: Count the books
+      community.postgresql.postgresql_query:
+        login_db: books
+        query: SELECT count(*) AS n FROM books
+      become: true
+      become_user: postgres
+      register: books_count
+      changed_when: false
+
+    - name: Add three books, if there are none
+      community.postgresql.postgresql_query:
+        login_db: books
+        query: >-
+          INSERT INTO books (title, stock) VALUES
+          ('The Linux Command Line', 4), ('Designing Data-Intensive Applications', 2), ('The Phoenix Project', 7)
+      become: true
+      become_user: postgres
+      when: books_count.query_result[0].n == 0
+
+    # The app (Linux Lessons 7 and 9)
+    - name: The database's name for the app
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: 127.0.0.1 db.internal
+
+    - name: The app's settings folder
+      ansible.builtin.file:
+        path: /etc/books-api
+        state: directory
+        mode: "0755"
+
+    - name: The app and its unit file
+      ansible.builtin.copy:
+        src: "files/{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode }}"
+        owner: root
+        group: "{{ item.group | default('root') }}"
+      loop:
+        - { src: books-api, dest: /usr/local/bin/books-api, mode: "0755" }
+        - { src: app.conf, dest: /etc/books-api/app.conf, mode: "0640", group: bookshop }
+        - { src: override.conf, dest: /etc/books-api/override.conf, mode: "0640", group: bookshop }
+        - { src: books-api.service, dest: /etc/systemd/system/books-api.service, mode: "0644" }
+      loop_control:
+        label: "{{ item.dest }}"
+      notify: Restart books-api
+
+    - name: Keep the app running, and start it at boot
+      ansible.builtin.systemd_service:
+        name: books-api
+        state: started
+        enabled: true
+        daemon_reload: true
+
+    # Web server (Linux Lessons 8 and 14)
+    - name: The static files folder
+      ansible.builtin.file:
+        path: /srv/books/static
+        state: directory
+        mode: "0755"
+
+    - name: The bookshop's nginx site
+      ansible.builtin.copy:
+        src: files/nginx-books
+        dest: /etc/nginx/sites-available/books
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Enable it
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/books
+        dest: /etc/nginx/sites-enabled/books
+        state: link
+      notify: Reload nginx
+
+    - name: Remove nginx's default site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Check nginx's config before anything reloads it
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    # Nightly backup (Linux Lesson 13)
+    - name: The backup script and its timer
+      ansible.builtin.copy:
+        src: "files/{{ item.src }}"
+        dest: "{{ item.dest }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - { src: books-backup, dest: /usr/local/bin/books-backup, mode: "0755" }
+        - { src: books-backup.service, dest: /etc/systemd/system/books-backup.service, mode: "0644" }
+        - { src: books-backup.timer, dest: /etc/systemd/system/books-backup.timer, mode: "0644" }
+      loop_control:
+        label: "{{ item.dest }}"
+
+    - name: Run the backup every night
+      ansible.builtin.systemd_service:
+        name: books-backup.timer
+        state: started
+        enabled: true
+        daemon_reload: true
+
+  handlers:
+    # Not the systemd_service module, on purpose: on Ubuntu 24.04 ssh can be started
+    # on demand, so it may not be running, and a plain reload fails on a stopped
+    # service. try-reload-or-restart reloads it if it's running, and does nothing if not.
+    - name: Reload ssh
+      ansible.builtin.command: systemctl try-reload-or-restart ssh  # noqa: command-instead-of-module
+      changed_when: true
+
+    - name: Restart books-api
+      ansible.builtin.systemd_service:
+        name: books-api
+        state: restarted
+        daemon_reload: true
+
+    - name: Reload nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded

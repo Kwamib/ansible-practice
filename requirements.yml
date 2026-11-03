@@ -1,0 +1,6 @@
+# Collections the playbooks use beyond ansible.builtin.
+# Install with: ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: community.general     # ufw
+  - name: community.postgresql  # postgresql_db, postgresql_table, postgresql_query
+  - name: ansible.posix         # mount
