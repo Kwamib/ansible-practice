@@ -1,97 +1,15 @@
 # The bookshop servers, described. Run with:  ansible-playbook site.yml
 # Dry run first:                              ansible-playbook site.yml --check --diff
+# The work is in roles/: baseline for every server, nginx for the web servers.
 
 - name: Baseline for every bookshop server
   hosts: bookshop
   become: true
-  tasks:
-    - name: Install the packages every server needs
-      ansible.builtin.apt:
-        name:
-          - acl
-          - htop
-          - tree
-        state: present
-        update_cache: true
-        cache_valid_time: 3600
-
-    - name: Show who manages this server when someone logs in
-      ansible.builtin.copy:
-        dest: /etc/motd
-        content: |
-          This is {{ inventory_hostname }}, part of the bookshop.
-          It's managed by Ansible: changes made here by hand will be put back.
-        owner: root
-        group: root
-        mode: "0644"
-
-    - name: Staff accounts
-      ansible.builtin.user:
-        name: "{{ item.name }}"
-        comment: "{{ item.comment | default(omit) }}"
-        shell: /bin/bash
-        state: "{{ item.state | default('present') }}"
-        remove: "{{ item.state | default('present') == 'absent' }}"
-      loop: "{{ bookshop_staff }}"
-      loop_control:
-        label: "{{ item.name }}"
-
-    - name: Record when this server was first set up
-      ansible.builtin.shell:
-        cmd: date -u +%Y-%m-%dT%H:%M:%SZ > /etc/bookshop-first-setup
-        creates: /etc/bookshop-first-setup
+  roles:
+    - baseline
 
 - name: Web servers
   hosts: web
   become: true
-  tasks:
-    - name: Install nginx
-      ansible.builtin.apt:
-        name: nginx
-        state: present
-
-    - name: Remove nginx's default site
-      ansible.builtin.file:
-        path: /etc/nginx/sites-enabled/default
-        state: absent
-      notify: Reload nginx
-
-    - name: Write the bookshop site's config
-      ansible.builtin.template:
-        src: templates/bookshop.conf.j2
-        dest: /etc/nginx/sites-available/bookshop
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Reload nginx
-
-    - name: Enable the bookshop site
-      ansible.builtin.file:
-        src: /etc/nginx/sites-available/bookshop
-        dest: /etc/nginx/sites-enabled/bookshop
-        state: link
-      notify: Reload nginx
-
-    - name: Check nginx's config before anything reloads it
-      ansible.builtin.command: nginx -t
-      changed_when: false
-
-    - name: Keep nginx running, and start it at boot
-      ansible.builtin.service:
-        name: nginx
-        state: started
-        enabled: true
-
-    - name: Put up the bookshop's home page
-      ansible.builtin.template:
-        src: templates/index.html.j2
-        dest: /var/www/html/index.html
-        owner: root
-        group: root
-        mode: "0644"
-
-  handlers:
-    - name: Reload nginx
-      ansible.builtin.service:
-        name: nginx
-        state: reloaded
+  roles:
+    - nginx
