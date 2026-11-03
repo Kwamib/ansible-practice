@@ -8,6 +8,6 @@ bookshop_staff:
     comment: Deploys the website
   - name: sam
     comment: Sam, owner
-  - name: priya
-    comment: Priya, part-time
+  - name: james
+    comment: James, part-time
     state: absent
