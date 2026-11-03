@@ -1,0 +1,28 @@
+# Bring one server's packages up to date, rebooting if they need it.
+- name: Refresh the package list
+  ansible.builtin.apt:
+    update_cache: true
+  changed_when: false
+
+- name: List what's waiting to be upgraded
+  ansible.builtin.command: apt list --upgradable
+  register: upgradable
+  changed_when: false
+
+- name: Say how many
+  ansible.builtin.debug:
+    msg: "{{ upgradable.stdout_lines | length - 1 }} packages to upgrade on {{ inventory_hostname }}"
+
+- name: Upgrade the packages
+  ansible.builtin.apt:
+    upgrade: safe
+
+- name: Look for the reboot-required flag
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reboot_flag
+
+- name: Reboot, and wait for the server to come back
+  ansible.builtin.reboot:
+    reboot_timeout: 300
+  when: reboot_flag.stat.exists

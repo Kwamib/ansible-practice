@@ -1,0 +1,19 @@
+# Patch the bookshop's servers, one web server at a time.
+# Run with:  ansible-playbook patch.yml
+# Each web server is patched, rebooted if needed and health-checked
+# before the next one starts. One unhealthy server stops the run.
+
+- name: Patch the web servers, one at a time
+  hosts: web
+  become: true
+  serial: 1
+  max_fail_percentage: 0
+  roles:
+    - patch
+    - health
+
+- name: Patch the database server
+  hosts: db
+  become: true
+  roles:
+    - patch
