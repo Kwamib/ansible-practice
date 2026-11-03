@@ -1,2 +1,13 @@
 # Settings for every server.
 admin_email: ops@bookshop.example
+
+# Everyone who needs an account on the bookshop's servers.
+# To remove someone, set their state to absent; deleting the line would leave the account behind.
+bookshop_staff:
+  - name: deploy
+    comment: Deploys the website
+  - name: sam
+    comment: Sam, owner
+  - name: priya
+    comment: Priya, part-time
+    state: absent

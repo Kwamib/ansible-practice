@@ -25,11 +25,16 @@
         group: root
         mode: "0644"
 
-    - name: Create the deploy user
+    - name: Staff accounts
       ansible.builtin.user:
-        name: deploy
+        name: "{{ item.name }}"
+        comment: "{{ item.comment | default(omit) }}"
         shell: /bin/bash
-        state: present
+        state: "{{ item.state | default('present') }}"
+        remove: "{{ item.state | default('present') == 'absent' }}"
+      loop: "{{ bookshop_staff }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Record when this server was first set up
       ansible.builtin.shell:
