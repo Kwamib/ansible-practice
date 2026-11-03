@@ -1,0 +1,55 @@
+# Is this web server healthy? Changes nothing. Used by health.yml and patch.yml.
+- name: Ask nginx for the home page, retrying while it starts
+  ansible.builtin.uri:
+    url: "http://localhost:{{ http_port }}"
+    return_content: true
+  register: page
+  retries: 5
+  delay: 2
+  until: page.status == 200
+
+- name: The page should name this server
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname in page.content
+    success_msg: "{{ inventory_hostname }} serves its own page"
+    fail_msg: "{{ inventory_hostname }}'s page doesn't mention it"
+
+- name: Look for a maintenance page
+  ansible.builtin.stat:
+    path: /var/www/html/maintenance.html
+  register: maintenance
+
+- name: Say so if there is one
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} has a maintenance page up"
+  when: maintenance.stat.exists
+
+- name: Warn about small servers
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} has only {{ ansible_facts['memtotal_mb'] }} MB of memory"
+  when: ansible_facts['memtotal_mb'] < 2048
+
+- name: Check disk space, failing only above 90%
+  ansible.builtin.command: df --output=pcent /
+  register: disk
+  changed_when: false
+  failed_when: (disk.stdout_lines[-1] | trim | replace('%', '') | int) > 90
+
+- name: Check nginx's config, and recover if it's broken
+  become: true
+  block:
+    - name: Test the config
+      ansible.builtin.command: nginx -t
+      changed_when: false
+  rescue:
+    - name: Report what's wrong
+      ansible.builtin.debug:
+        msg: "nginx's config is broken on {{ inventory_hostname }}: {{ ansible_failed_result.stderr_lines[-2] | default('see above') }}"
+    - name: Fail the run, now the reason is on screen
+      ansible.builtin.fail:
+        msg: "{{ inventory_hostname }} is not healthy: its nginx config is broken"
+  always:
+    - name: Note that this server was checked
+      ansible.builtin.debug:
+        msg: "Checked {{ inventory_hostname }}, disk {{ disk.stdout_lines[-1] | trim }} full"
