@@ -1,0 +1,4 @@
+# Defaults for the health role.
+# The port to check: the server's http_port, from the inventory. No fallback on
+# purpose: a check that guesses the port could pass while checking the wrong one.
+health_http_port: "{{ http_port }}"

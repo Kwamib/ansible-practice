@@ -1,9 +1,9 @@
 # {{ ansible_managed }}
 # The bookshop site on {{ inventory_hostname }}.
 server {
-    listen {{ http_port }} default_server;
-    listen [::]:{{ http_port }} default_server;
-    server_name {{ site_name }};
+    listen {{ nginx_http_port }} default_server;
+    listen [::]:{{ nginx_http_port }} default_server;
+    server_name {{ nginx_site_name }};
 
     root /var/www/html;
     index index.html;
@@ -12,5 +12,5 @@ server {
         try_files $uri $uri/ =404;
     }
 
-    access_log /var/log/nginx/{{ site_name }}.access.log;
+    access_log /var/log/nginx/{{ nginx_site_name }}.access.log;
 }

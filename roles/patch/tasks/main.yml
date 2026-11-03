@@ -6,12 +6,12 @@
 
 - name: List what's waiting to be upgraded
   ansible.builtin.command: apt list --upgradable
-  register: upgradable
+  register: patch_upgradable
   changed_when: false
 
 - name: Say how many
   ansible.builtin.debug:
-    msg: "{{ upgradable.stdout_lines | length - 1 }} packages to upgrade on {{ inventory_hostname }}"
+    msg: "{{ patch_upgradable.stdout_lines | length - 1 }} packages to upgrade on {{ inventory_hostname }}"
 
 - name: Upgrade the packages
   ansible.builtin.apt:
@@ -20,9 +20,9 @@
 - name: Look for the reboot-required flag
   ansible.builtin.stat:
     path: /var/run/reboot-required
-  register: reboot_flag
+  register: patch_reboot_flag
 
 - name: Reboot, and wait for the server to come back
   ansible.builtin.reboot:
     reboot_timeout: 300
-  when: reboot_flag.stat.exists
+  when: patch_reboot_flag.stat.exists

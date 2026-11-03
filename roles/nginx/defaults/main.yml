@@ -1,4 +1,10 @@
 # Defaults for the nginx role: the lowest priority of any variable.
 # group_vars, host_vars, the inventory and -e all win over these.
-http_port: 80
-site_name: bookshop
+
+# The port to listen on: the server's http_port if the inventory sets one
+# (health.yml reads it too), otherwise 80.
+nginx_http_port: "{{ http_port | default(80) }}"
+
+# The site's name, for server_name and the log file. site_name still works
+# as an override, as in Lesson 7.
+nginx_site_name: "{{ site_name | default('bookshop') }}"

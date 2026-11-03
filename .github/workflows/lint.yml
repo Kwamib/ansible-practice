@@ -1,0 +1,33 @@
+# Lint the playbooks on every push and pull request.
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ansible-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible and ansible-lint
+        run: pip install ansible-core ansible-lint
+
+      # ansible.cfg expects the vault password in .vault_pass.
+      # It comes from a repository secret, never from the repository itself.
+      - name: Write the vault password
+        run: printf '%s\n' "$VAULT_PASSWORD" > .vault_pass
+        env:
+          VAULT_PASSWORD: ${{ secrets.VAULT_PASSWORD }}
+
+      - name: Syntax check
+        run: ansible-playbook --syntax-check site.yml patch.yml health.yml
+
+      - name: Lint
+        run: ansible-lint

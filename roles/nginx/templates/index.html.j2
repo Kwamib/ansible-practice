@@ -1,6 +1,6 @@
-<h1>{{ site_name }}</h1>
-<p>Served by {{ inventory_hostname }} ({{ ansible_facts['default_ipv4']['address'] }}), on port {{ http_port }}.</p>
-{% if http_port != 80 %}
+<h1>{{ nginx_site_name }}</h1>
+<p>Served by {{ inventory_hostname }} ({{ ansible_facts['default_ipv4']['address'] }}), on port {{ nginx_http_port }}.</p>
+{% if nginx_http_port | int != 80 %}
 <p>This server uses a non-standard port.</p>
 {% endif %}
 <p>Questions? {{ admin_email }}</p>
