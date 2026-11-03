@@ -1,3 +1,6 @@
 # Settings for the web servers, shared by every playbook that runs on them.
 # The nginx role has its own default of 80; this is what health.yml reads.
 http_port: 80
+
+# The app's database password. The real value is in vault.yml, encrypted.
+db_password: "{{ vault_db_password }}"

@@ -1,0 +1,17 @@
+# The bookshop app's settings, including its database password.
+- name: Make the app's settings folder
+  ansible.builtin.file:
+    path: /etc/bookshop
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Write the app's settings, readable only by root
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: /etc/bookshop/app.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
